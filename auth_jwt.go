@@ -233,6 +233,40 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 	})
 }
 
+func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) {
+	token, _ := mw.parseToken(c)
+	claims := token.Claims.(jwt.MapClaims)
+
+	origIat := int64(claims["orig_iat"].(float64))
+
+	if origIat < mw.TimeFunc().Add(-mw.MaxRefresh).Unix() {
+		mw.unauthorized(c, http.StatusUnauthorized, "Token is expired.")
+		return
+	}
+
+	// Create the token
+	newToken := jwt.New(jwt.GetSigningMethod(mw.SigningAlgorithm))
+	newClaims := newToken.Claims.(jwt.MapClaims)
+
+	for key := range claims {
+		newClaims[key] = claims[key]
+	}
+
+	expire := mw.TimeFunc().Add(mw.Timeout)
+	newClaims["id"] = claims["id"]
+	newClaims["exp"] = expire.Unix()
+	newClaims["orig_iat"] = origIat
+
+	tokenString, err := newToken.SignedString(mw.Key)
+
+	if err != nil {
+		mw.unauthorized(c, http.StatusUnauthorized, "Create JWT Token faild")
+		return
+	}
+
+	c.Header("refreshedToken", tokenString)
+}
+
 // RefreshHandler can be used to refresh a token. The token still needs to be valid on refresh.
 // Shall be put under an endpoint that is using the GinJWTMiddleware.
 // Reply will be of the form {"token": "TOKEN"}.
