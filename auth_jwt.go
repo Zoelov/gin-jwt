@@ -235,6 +235,10 @@ func (mw *GinJWTMiddleware) LoginHandler(c *gin.Context) {
 
 func (mw *GinJWTMiddleware) RefreshToken(c *gin.Context) {
 	token, _ := mw.parseToken(c)
+	// 免密登录
+	if token == nil {
+		return
+	}
 	claims := token.Claims.(jwt.MapClaims)
 
 	origIat := int64(claims["orig_iat"].(float64))
